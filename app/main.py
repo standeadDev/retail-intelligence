@@ -1,7 +1,7 @@
 ﻿import streamlit as st
 import pandas as pd
-import sqlite3
 import plotly.express as px
+import os
 
 # 1. Configuração da página
 st.set_page_config(
@@ -10,25 +10,32 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. Função com cache para carregar os dados rapidamente
+# 2. Função com cache para carregar os dados via CSV (Compatível com Streamlit Cloud)
 @st.cache_data
 def carregar_dados():
-    conn = sqlite3.connect('retail_intelligence.db')
-    df_vendas = pd.read_sql_query("SELECT * FROM tb_vendas", conn)
-    df_rfm = pd.read_sql_query("SELECT * FROM tb_clientes_rfm", conn)
-    conn.close()
+    # Caminhos relativos a partir da raiz do repositório
+    caminho_vendas = os.path.join('data', 'processed', 'online_retail_cleaned.csv')
+    caminho_rfm = os.path.join('data', 'processed', 'rfm_clientes_segmentados.csv')
+    
+    df_vendas = pd.read_csv(caminho_vendas, dtype={'InvoiceNo': str, 'StockCode': str})
+    df_rfm = pd.read_csv(caminho_rfm)
     
     df_vendas['InvoiceDate'] = pd.to_datetime(df_vendas['InvoiceDate'])
     df_vendas['Ano_Mes'] = df_vendas['InvoiceDate'].dt.to_period('M').astype(str)
     return df_vendas, df_rfm
 
-df_vendas, df_rfm = carregar_dados()
+# Carregar bases de dados
+try:
+    df_vendas, df_rfm = carregar_dados()
+except Exception as e:
+    st.error(f"Erro ao carregar os dados. Verifique se os arquivos CSV estão na pasta data/processed/. Detalhes: {e}")
+    st.stop()
 
 # 3. Barra Lateral — Filtros Interativos
 st.sidebar.header("🔍 Filtros Executivos")
 
 # Filtro de País
-paises = ["Todos"] + sorted(df_vendas['Country'].unique().tolist())
+paises = ["Todos"] + sorted(df_vendas['Country'].dropna().unique().tolist())
 pais_selecionado = st.sidebar.selectbox("Selecione o País:", paises)
 
 # Aplicar Filtro de País
